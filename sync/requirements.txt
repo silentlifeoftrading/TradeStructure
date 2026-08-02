@@ -1,0 +1,3 @@
+tradelocker
+requests
+python-dotenv
