@@ -1,0 +1,29 @@
+name: TradeLocker Sync
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r sync/requirements.txt
+
+      - name: Run TradeLocker sync
+        env:
+          TL_ENV: ${{ secrets.TL_ENV }}
+          TL_USERNAME: ${{ secrets.TL_USERNAME }}
+          TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
+          TL_SERVER: ${{ secrets.TL_SERVER }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+          INGEST_API_KEY: ${{ secrets.INGEST_API_KEY }}
+        run: python sync/tradelocker_sync.py
