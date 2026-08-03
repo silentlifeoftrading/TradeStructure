@@ -18,12 +18,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r sync/requirements.txt
 
-      - name: Run TradeLocker sync
+      - name: Run TradeLocker sync (all accounts)
         env:
-          TL_ENV: ${{ secrets.TL_ENV }}
-          TL_USERNAME: ${{ secrets.TL_USERNAME }}
-          TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
-          TL_SERVER: ${{ secrets.TL_SERVER }}
+          TL_ACCOUNTS: ${{ secrets.TL_ACCOUNTS }}
           INGEST_URL: ${{ secrets.INGEST_URL }}
           INGEST_API_KEY: ${{ secrets.INGEST_API_KEY }}
         run: python sync/tradelocker_sync.py
