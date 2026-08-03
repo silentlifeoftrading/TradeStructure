@@ -31,6 +31,7 @@ from syncing -- each account's errors are caught and logged individually.
 
 import os
 import json
+import math
 import requests
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -41,6 +42,28 @@ load_dotenv()
 TL_ACCOUNTS_RAW = os.environ["TL_ACCOUNTS"]
 INGEST_URL = os.environ["INGEST_URL"]
 INGEST_API_KEY = os.environ["INGEST_API_KEY"]
+
+
+def sanitize_for_json(obj):
+    """
+    TradeLocker's pandas/numpy data contains NaN values and numpy scalar
+    types (int64, float64) that Python's JSON encoder can't send -- this
+    walks the whole structure and fixes both before we POST it.
+    """
+    if hasattr(obj, "item") and not isinstance(obj, (dict, list, str)):
+        try:
+            obj = obj.item()
+        except Exception:
+            pass
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize_for_json(v) for v in obj]
+    return obj
 
 
 def iso(ts):
@@ -66,15 +89,6 @@ def sync_one_account(acct):
     account_info = tl.get_account_state()
     positions = tl.get_all_positions()
     orders_history = tl.get_all_orders(history=True, lookback_period="90D")
-
-    # TEMP DEBUG: print one raw filled order so we can see its exact fields
-    # and fix P&L mapping precisely on the next pass. Remove once confirmed.
-    _records = orders_history.to_dict("records") if hasattr(orders_history, "to_dict") else orders_history
-    _filled = [r for r in _records if str(r.get("status", "")).lower() == "filled"]
-    if _filled:
-        print(f"[DEBUG] Sample filled order record: {_filled[0]}")
-    else:
-        print("[DEBUG] No filled orders found in lookback window.")
 
     trades_payload = []
 
@@ -111,10 +125,10 @@ def sync_one_account(acct):
             "open_time": iso(o.get("createdDate")),
             "close_time": iso(o.get("lastModified")),
             "open_price": o.get("avgPrice") or o.get("price"),
-            "close_price": None,  # not exposed at order level in this API version -- see note below
+            "close_price": None,  # not exposed at order level in this API version
             "stop_loss": o.get("stopLoss"),
             "take_profit": o.get("takeProfit"),
-            "pnl": None,  # not exposed at order level -- realized P&L needs a separate execution/position lookup, see note below
+            "pnl": None,  # not exposed at order level -- computed in a follow-up pass
             "commission": o.get("commission", 0),
             "swap": o.get("swap", 0),
             "status": "closed",
@@ -140,6 +154,8 @@ def sync_one_account(acct):
             "equity": account_info.get("equity") or account_info.get("balance"),
         },
     }
+
+    payload = sanitize_for_json(payload)
 
     resp = requests.post(
         INGEST_URL,
