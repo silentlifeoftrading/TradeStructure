@@ -22,14 +22,6 @@ TL_ACCOUNTS format (a single JSON string, no line breaks needed):
     "password": "your_password",
     "server": "your_server_code",
     "broker_or_firm": "TradeLocker Demo"
-  },
-  {
-    "label": "thePropTrade - Challenge 1",
-    "env": "https://live.tradelocker.com",
-    "username": "you@email.com",
-    "password": "your_password",
-    "server": "another_server_code",
-    "broker_or_firm": "thePropTrade"
   }
 ]
 
@@ -73,7 +65,16 @@ def sync_one_account(acct):
 
     account_info = tl.get_account_state()
     positions = tl.get_all_positions()
-    orders_history = tl.get_orders_history()
+    orders_history = tl.get_all_orders(history=True, lookback_period="90D")
+
+    # TEMP DEBUG: print one raw filled order so we can see its exact fields
+    # and fix P&L mapping precisely on the next pass. Remove once confirmed.
+    _records = orders_history.to_dict("records") if hasattr(orders_history, "to_dict") else orders_history
+    _filled = [r for r in _records if str(r.get("status", "")).lower() == "filled"]
+    if _filled:
+        print(f"[DEBUG] Sample filled order record: {_filled[0]}")
+    else:
+        print("[DEBUG] No filled orders found in lookback window.")
 
     trades_payload = []
 
@@ -96,19 +97,24 @@ def sync_one_account(acct):
             "raw_payload": p,
         })
 
-    for o in orders_history.to_dict("records") if hasattr(orders_history, "to_dict") else orders_history:
+    order_records = orders_history.to_dict("records") if hasattr(orders_history, "to_dict") else orders_history
+    for o in order_records:
+        # Only treat fully filled orders as "closed trades" -- pending,
+        # cancelled, and rejected orders aren't real trades.
+        if str(o.get("status", "")).lower() != "filled":
+            continue
         trades_payload.append({
             "platform_trade_id": str(o.get("id") or o.get("orderId")),
             "symbol": o.get("tradableInstrumentId") or o.get("symbol"),
             "side": "buy" if str(o.get("side", "")).lower() == "buy" else "sell",
-            "lots": o.get("qty") or o.get("volume"),
+            "lots": o.get("filledQty") or o.get("qty"),
             "open_time": iso(o.get("createdDate")),
-            "close_time": iso(o.get("closedDate") or o.get("filledDate")),
-            "open_price": o.get("openPrice") or o.get("avgPrice"),
-            "close_price": o.get("closePrice"),
+            "close_time": iso(o.get("lastModified")),
+            "open_price": o.get("avgPrice") or o.get("price"),
+            "close_price": None,  # not exposed at order level in this API version -- see note below
             "stop_loss": o.get("stopLoss"),
             "take_profit": o.get("takeProfit"),
-            "pnl": o.get("pl") or o.get("realizedPl"),
+            "pnl": None,  # not exposed at order level -- realized P&L needs a separate execution/position lookup, see note below
             "commission": o.get("commission", 0),
             "swap": o.get("swap", 0),
             "status": "closed",
