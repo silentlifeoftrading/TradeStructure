@@ -22,6 +22,14 @@ TL_ACCOUNTS format (a single JSON string, no line breaks needed):
     "password": "your_password",
     "server": "your_server_code",
     "broker_or_firm": "TradeLocker Demo"
+  },
+  {
+    "label": "thePropTrade - Challenge 1",
+    "env": "https://live.tradelocker.com",
+    "username": "you@email.com",
+    "password": "your_password",
+    "server": "another_server_code",
+    "broker_or_firm": "thePropTrade"
   }
 ]
 
@@ -112,6 +120,19 @@ def sync_one_account(acct):
         })
 
     order_records = orders_history.to_dict("records") if hasattr(orders_history, "to_dict") else orders_history
+
+    # TEMP DEBUG: fetch full instrument details for one real instrument from
+    # this account's trade history, so we can see the actual contract-size/
+    # lot-size field name instead of guessing. Wrapped in try/except so it
+    # can never break the real sync even if this call fails.
+    if order_records:
+        try:
+            sample_instrument_id = order_records[0].get("tradableInstrumentId")
+            details = tl.get_instrument_details(int(sample_instrument_id))
+            print(f"[DEBUG] Instrument details for id={sample_instrument_id}: {details}")
+        except Exception as e:
+            print(f"[DEBUG] Could not fetch instrument details: {e}")
+
     for o in order_records:
         # Only treat fully filled orders as "closed trades" -- pending,
         # cancelled, and rejected orders aren't real trades.
@@ -125,10 +146,10 @@ def sync_one_account(acct):
             "open_time": iso(o.get("createdDate")),
             "close_time": iso(o.get("lastModified")),
             "open_price": o.get("avgPrice") or o.get("price"),
-            "close_price": None,  # not exposed at order level in this API version
+            "close_price": None,  # not exposed at order level in this API version -- see note below
             "stop_loss": o.get("stopLoss"),
             "take_profit": o.get("takeProfit"),
-            "pnl": None,  # not exposed at order level -- computed in a follow-up pass
+            "pnl": None,  # not exposed at order level -- realized P&L needs a separate execution/position lookup, see note below
             "commission": o.get("commission", 0),
             "swap": o.get("swap", 0),
             "status": "closed",
