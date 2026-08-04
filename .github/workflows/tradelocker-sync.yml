@@ -24,3 +24,8 @@ jobs:
           INGEST_URL: ${{ secrets.INGEST_URL }}
           INGEST_API_KEY: ${{ secrets.INGEST_API_KEY }}
         run: python sync/tradelocker_sync.py
+
+      - name: Reconcile P&L from balance changes
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python sync/compute_pnl.py
