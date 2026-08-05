@@ -98,12 +98,26 @@ def sync_one_account(acct):
     positions = tl.get_all_positions()
     orders_history = tl.get_all_orders(history=True, lookback_period="90D")
 
+    # TradeLocker's order/position data only gives a numeric instrument ID,
+    # not the actual pair name -- build a lookup once so trades show
+    # "EURJPY" instead of "18506".
+    instruments = tl.get_all_instruments()
+    instrument_records = instruments.to_dict("records") if hasattr(instruments, "to_dict") else instruments
+    symbol_lookup = {
+        rec.get("tradableInstrumentId"): rec.get("name")
+        for rec in instrument_records
+        if rec.get("tradableInstrumentId") is not None
+    }
+
+    def resolve_symbol(instrument_id):
+        return symbol_lookup.get(instrument_id, str(instrument_id))
+
     trades_payload = []
 
     for p in positions.to_dict("records") if hasattr(positions, "to_dict") else positions:
         trades_payload.append({
             "platform_trade_id": str(p.get("id") or p.get("positionId")),
-            "symbol": p.get("tradableInstrumentId") or p.get("symbol"),
+            "symbol": resolve_symbol(p.get("tradableInstrumentId")) or p.get("symbol"),
             "side": "buy" if str(p.get("side", "")).lower() == "buy" else "sell",
             "lots": p.get("qty") or p.get("volume"),
             "open_time": iso(p.get("openDate") or p.get("createdDate")),
@@ -128,7 +142,7 @@ def sync_one_account(acct):
             continue
         trades_payload.append({
             "platform_trade_id": str(o.get("id") or o.get("orderId")),
-            "symbol": o.get("tradableInstrumentId") or o.get("symbol"),
+            "symbol": resolve_symbol(o.get("tradableInstrumentId")) or o.get("symbol"),
             "side": "buy" if str(o.get("side", "")).lower() == "buy" else "sell",
             "lots": o.get("filledQty") or o.get("qty"),
             "open_time": iso(o.get("createdDate")),
