@@ -114,6 +114,13 @@ export default function CalendarWidget({ accountId, compact = false, showWeeklyS
 
       {error && <div className="err">Couldn't load calendar: {error}</div>}
 
+      {calData?.trackingStart && new Date(month + '-01') < new Date(calData.trackingStart) && (
+        <div className="tracking-note">
+          P&L tracking began {new Date(calData.trackingStart).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}.
+          Trades before this show accurately (symbol, side, lots, time) but P&L can't be reconstructed since no balance history exists for this period.
+        </div>
+      )}
+
       {calData && !compact && (
         <div className="stat-grid">
           <MiniStat label="Total Trades" value={calData.summary.totalTrades} />
@@ -220,6 +227,7 @@ export default function CalendarWidget({ accountId, compact = false, showWeeklyS
         .month-nav button { background: var(--panel); border: 1px solid var(--panel-border); color: var(--text); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 15px; }
         .month-label { font-size: 14px; font-weight: 600; min-width: 140px; }
         .err { color: var(--loss); padding: 10px 0; font-size: 13px; }
+        .tracking-note { background: rgba(139, 147, 167, 0.08); border: 1px solid rgba(139, 147, 167, 0.2); color: var(--text-dim); font-size: 12px; padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; line-height: 1.5; }
         .text-dim { color: var(--text-dim); }
         .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
         .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 16px; }
