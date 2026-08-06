@@ -50,9 +50,17 @@ export default async function handler(req, res) {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          ON CONFLICT (account_id, platform_trade_id)
          DO UPDATE SET
+           symbol = EXCLUDED.symbol,
+           side = EXCLUDED.side,
+           lots = EXCLUDED.lots,
+           open_price = EXCLUDED.open_price,
            close_time = EXCLUDED.close_time,
            close_price = EXCLUDED.close_price,
+           stop_loss = EXCLUDED.stop_loss,
+           take_profit = EXCLUDED.take_profit,
            pnl = EXCLUDED.pnl,
+           commission = EXCLUDED.commission,
+           swap = EXCLUDED.swap,
            status = EXCLUDED.status,
            raw_payload = EXCLUDED.raw_payload,
            synced_at = now()`,
