@@ -92,6 +92,10 @@ def sync_one_account(acct):
         username=acct["username"],
         password=acct["password"],
         server=acct["server"],
+        log_level="warning",  # 'debug' (the library default) prints request
+                               # bodies -- including the plaintext password --
+                               # straight into GitHub Actions logs. Never use
+                               # debug/info here.
     )
 
     account_info = tl.get_account_state()
