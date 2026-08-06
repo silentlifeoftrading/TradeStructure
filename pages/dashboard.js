@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import CalendarWidget from '../components/CalendarWidget';
+
+const REFRESH_INTERVAL_MS = 60 * 1000; // re-poll the DB every 60s so the UI reflects the latest sync without a manual reload
 
 const money = (n) => {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  const sign = n < 0 ? '-' : '+';
+  return `${sign}$${Math.abs(n).toFixed(2)}`;
+};
+
+const moneyPlain = (n) => {
   if (n === null || n === undefined || Number.isNaN(n)) return '—';
   const sign = n < 0 ? '-' : '';
   return `${sign}$${Math.abs(n).toFixed(2)}`;
@@ -22,6 +31,8 @@ export default function Dashboard() {
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     const url = selectedAccountId
@@ -35,10 +46,21 @@ export default function Dashboard() {
         setData(d);
         if (!selectedAccountId && d.activeAccountId) setSelectedAccountId(d.activeAccountId);
         setError(null);
+        setLastUpdated(new Date());
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [selectedAccountId]);
+  }, [selectedAccountId, refreshTick]);
+
+  // Auto-refresh: re-fetch on an interval so open->closed trades and new
+  // syncs show up without the user manually reloading the page. This
+  // reflects whatever is currently in the DB -- it doesn't make the
+  // underlying TradeLocker sync itself run any more often (that's still
+  // the GitHub Actions schedule).
+  useEffect(() => {
+    const id = setInterval(() => setRefreshTick((t) => t + 1), REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="page">
@@ -69,7 +91,10 @@ export default function Dashboard() {
       <div className="header">
         <div>
           <h1>Trade Journal</h1>
-          <p className="subtitle">Phase 1b — Dashboard</p>
+          <p className="subtitle">
+            Phase 1b — Dashboard
+            {lastUpdated && <span className="last-updated"> · updated {lastUpdated.toLocaleTimeString()}</span>}
+          </p>
         </div>
 
         {data && data.accounts && data.accounts.length > 0 && (
@@ -100,15 +125,15 @@ export default function Dashboard() {
       {!loading && !error && data && data.summary && (
         <>
           <div className="stat-grid">
-            <StatCard label="Balance" value={money(data.summary.currentBalance)} />
-            <StatCard label="Equity" value={money(data.summary.currentEquity)} />
+            <StatCard label="Balance" value={moneyPlain(data.summary.currentBalance)} />
+            <StatCard label="Equity" value={moneyPlain(data.summary.currentEquity)} />
             <StatCard
               label="Realized P&L (confirmed)"
               value={money(data.summary.exactPnlTotal)}
               tone={data.summary.exactPnlTotal >= 0 ? 'profit' : 'loss'}
             />
             <StatCard label="Win Rate" value={pct(data.summary.winRate)} sub={`${data.summary.wins}W / ${data.summary.losses}L`} />
-            <StatCard label="Max Drawdown" value={money(-data.summary.maxDrawdown)} tone="loss" />
+            <StatCard label="Max Drawdown" value={moneyPlain(-data.summary.maxDrawdown)} tone="loss" />
             <StatCard label="Open Positions" value={data.summary.openPositionsCount} />
           </div>
 
@@ -150,6 +175,17 @@ export default function Dashboard() {
                 </LineChart>
               </ResponsiveContainer>
             )}
+          </div>
+
+          <div className="panel">
+            <h2>Calendar</h2>
+            <CalendarWidget
+              accountId={selectedAccountId}
+              compact={true}
+              showWeeklySummary={true}
+              refreshKey={refreshTick}
+            />
+            <a className="cal-link" href="/calendar">Open full calendar view →</a>
           </div>
 
           <div className="panel">
@@ -220,6 +256,16 @@ export default function Dashboard() {
           margin: 2px 0 0;
           font-size: 13px;
           color: var(--text-dim);
+        }
+        .last-updated {
+          color: var(--text-dim);
+        }
+        .cal-link {
+          display: inline-block;
+          margin-top: 12px;
+          font-size: 12px;
+          color: var(--accent);
+          text-decoration: none;
         }
         .account-select {
           background: var(--panel);
