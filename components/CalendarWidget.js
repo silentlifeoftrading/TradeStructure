@@ -208,8 +208,8 @@ export default function CalendarWidget({ accountId, compact = false, showWeeklyS
                         <td><span className={`side-tag ${t.side}`}>{t.side}</span></td>
                         <td className="mono">{Number(t.lots).toFixed(2)}</td>
                         <td className="mono text-dim">{fmtTime(t.close_time)}</td>
-                        <td className={`mono ${t.pnl_source === 'balance_exact' ? (Number(t.pnl) >= 0 ? 'profit' : 'loss') : 'text-dim'}`}>
-                          {t.pnl_source === 'balance_exact' ? money(Number(t.pnl)) : 'unconfirmed'}
+                        <td className={`mono ${t.pnl_source === 'balance_exact' && t.pnl !== null ? (Number(t.pnl) >= 0 ? 'profit' : 'loss') : 'text-dim'}`}>
+                          {t.pnl_source === 'balance_exact' && t.pnl !== null ? money(Number(t.pnl)) : 'unconfirmed'}
                         </td>
                       </tr>
                     ))}
