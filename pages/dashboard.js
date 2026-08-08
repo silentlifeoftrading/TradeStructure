@@ -219,8 +219,8 @@ export default function Dashboard() {
                         <td>
                           <span className={`status-tag ${t.status}`}>{t.status}</span>
                         </td>
-                        <td className={`mono ${t.pnl_source === 'balance_exact' ? (Number(t.pnl) >= 0 ? 'profit' : 'loss') : 'text-dim'}`}>
-                          {t.pnl_source === 'balance_exact' ? money(Number(t.pnl)) : (t.status === 'closed' ? 'unconfirmed' : '—')}
+                        <td className={`mono ${t.pnl_source === 'balance_exact' && t.pnl !== null ? (Number(t.pnl) >= 0 ? 'profit' : 'loss') : 'text-dim'}`}>
+                          {t.pnl_source === 'balance_exact' && t.pnl !== null ? money(Number(t.pnl)) : (t.status === 'closed' ? 'unconfirmed' : '—')}
                         </td>
                       </tr>
                     ))}
