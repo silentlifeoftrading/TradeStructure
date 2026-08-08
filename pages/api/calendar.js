@@ -55,11 +55,11 @@ export default async function handler(req, res) {
     const result = await client.query(
       `SELECT
          (close_time AT TIME ZONE $2)::date AS trade_date,
-         SUM(CASE WHEN pnl_source = 'balance_exact' THEN pnl ELSE 0 END) AS confirmed_pnl,
+         SUM(CASE WHEN pnl_source = 'balance_exact' AND pnl IS NOT NULL THEN pnl ELSE 0 END) AS confirmed_pnl,
          COUNT(*) AS trade_count,
          COUNT(*) FILTER (WHERE pnl_source = 'balance_exact' AND pnl > 0) AS wins,
          COUNT(*) FILTER (WHERE pnl_source = 'balance_exact' AND pnl < 0) AS losses,
-         COUNT(*) FILTER (WHERE pnl_source IS NULL) AS unconfirmed_count
+         COUNT(*) FILTER (WHERE pnl_source IS NULL OR pnl IS NULL) AS unconfirmed_count
        FROM trades
        WHERE account_id = $1
          AND status = 'closed'
