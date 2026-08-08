@@ -59,7 +59,7 @@ export default async function handler(req, res) {
       ? Number(balanceHistory[balanceHistory.length - 1].equity)
       : null;
 
-    const reconciledTrades = trades.filter((t) => t.pnl_source === 'balance_exact');
+    const reconciledTrades = trades.filter((t) => t.pnl_source === 'balance_exact' && t.pnl !== null);
     const wins = reconciledTrades.filter((t) => Number(t.pnl) > 0).length;
     const losses = reconciledTrades.filter((t) => Number(t.pnl) < 0).length;
     const winRate = reconciledTrades.length ? (wins / reconciledTrades.length) * 100 : null;
