@@ -188,7 +188,7 @@ def sync_one_account(acct):
         INGEST_URL,
         json=payload,
         headers={"x-ingest-key": INGEST_API_KEY},
-        timeout=30,
+        timeout=90,
     )
     resp.raise_for_status()
     print(f"    -> {resp.json()}")
