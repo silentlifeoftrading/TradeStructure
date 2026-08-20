@@ -1,7 +1,7 @@
 // pages/api/ingest.js
 //
-// This is the ONLY endpoint that writes trade data. Both sync scripts
-// (TradeLocker and MT5) call this. Broker credentials never reach this
+// This is the ONLY endpoint that writes trade data. All sync scripts
+// (TradeLocker, MT5) call this. Broker credentials never reach this
 // server — only the resulting trade/account/balance data does.
 
 import { Pool } from 'pg';
@@ -42,13 +42,13 @@ export default async function handler(req, res) {
     const accountId = accountResult.rows[0].id;
 
     // 2. Upsert trades in batches (idempotent — safe to re-run repeatedly).
-    // Previously this ran one query per trade, which meant N round-trips
-    // to Supabase -- fine at ~180 trades, but scaled badly as history
-    // grew and started timing out. Batching into one multi-row query per
-    // chunk cuts that down to ~(N / BATCH_SIZE) round-trips instead.
+    // pnl_source is now sent directly by the sync script when known at
+    // ingest time (MT5's history_deals_get() includes real profit per
+    // deal). TradeLocker still sends it as null and gets it filled in
+    // later by compute_pnl.py's balance-reconciliation pass.
     const tradeList = trades || [];
     const BATCH_SIZE = 50;
-    const TRADE_COLS = 16;
+    const TRADE_COLS = 17;
 
     for (let i = 0; i < tradeList.length; i += BATCH_SIZE) {
       const batch = tradeList.slice(i, i + BATCH_SIZE);
@@ -64,14 +64,15 @@ export default async function handler(req, res) {
       for (const t of batch) {
         params.push(
           accountId, t.platform_trade_id, t.symbol, t.side, t.lots, t.open_time, t.close_time,
-          t.open_price, t.close_price, t.stop_loss, t.take_profit, t.pnl, t.commission, t.swap, t.status, t.raw_payload
+          t.open_price, t.close_price, t.stop_loss, t.take_profit, t.pnl, t.commission, t.swap,
+          t.status, t.raw_payload, t.pnl_source || null
         );
       }
 
       await client.query(
         `INSERT INTO trades
            (account_id, platform_trade_id, symbol, side, lots, open_time, close_time,
-            open_price, close_price, stop_loss, take_profit, pnl, commission, swap, status, raw_payload)
+            open_price, close_price, stop_loss, take_profit, pnl, commission, swap, status, raw_payload, pnl_source)
          VALUES ${valuesSql}
          ON CONFLICT (account_id, platform_trade_id)
          DO UPDATE SET
@@ -84,6 +85,7 @@ export default async function handler(req, res) {
            stop_loss = EXCLUDED.stop_loss,
            take_profit = EXCLUDED.take_profit,
            pnl = COALESCE(EXCLUDED.pnl, trades.pnl),
+           pnl_source = COALESCE(EXCLUDED.pnl_source, trades.pnl_source),
            commission = EXCLUDED.commission,
            swap = EXCLUDED.swap,
            status = EXCLUDED.status,
